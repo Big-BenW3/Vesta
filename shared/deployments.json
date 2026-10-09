@@ -1,0 +1,15 @@
+# Locked testnet constants. Deployed contract addresses are written here
+# by contracts/script/Deploy.s.sol — hand-editing them is a bug.
+{
+  "chainId": 10143,
+  "chainName": "Monad Testnet",
+  "rpcUrl": "https://testnet-rpc.monad.xyz",
+  "usdc": "0x534b2f3A21130d7a60830c2Df862319e593943A3",
+  "pyth": "0x2880aB155794e7179c9eE2e38200202908C17B43",
+  "hermesUrl": "https://hermes.pyth.network",
+  "uniRouter": null,
+  "uniFactory": null,
+  "registry": null,
+  "factory": null,
+  "vaults": []
+}
