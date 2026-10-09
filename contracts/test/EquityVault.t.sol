@@ -177,6 +177,10 @@ contract VaultAccountingTest is VaultHarness {
         vm.prank(alice);
         vault.deposit(1_000_000_000, alice);
         skip(1 days);
+        // why: the real agent pushes fresh updateData every tick — re-stamp the
+        // mock feeds or the swap path correctly reverts on StalePrice instead.
+        pyth.setPrice(NVDA_ID, 100_000_000, -6);
+        pyth.setPrice(MSFT_ID, 100_000_000, -6);
         bytes32 h = _commit(0, block.timestamp, '{"w":1}');
         uint256[] memory w = new uint256[](2);
         w[0] = 5000;
@@ -185,6 +189,49 @@ contract VaultAccountingTest is VaultHarness {
         vault.rebalance(h, 0, block.timestamp, w, new bytes[](0), _mins());
         assertEq(usdc.balanceOf(feeTo), 0); // why: fee is minted SHARES, not pulled USDC
         assertApproxEqAbs(vault.balanceOf(feeTo), 13_698, 10);
+    }
+
+    /// @notice dt caps at 30 days: a year-idle vault mints 30 days of fee, not 365.
+    /// expect = 1e9 * 50 * 2592000 / (31536000 * 10000) = 410958 base units.
+    function test_fee_dt_capped_at_30_days() public {
+        vm.prank(alice);
+        vault.deposit(1_000_000_000, alice);
+        skip(365 days);
+        pyth.setPrice(NVDA_ID, 100_000_000, -6);
+        pyth.setPrice(MSFT_ID, 100_000_000, -6);
+        bytes32 h = _commit(0, block.timestamp, '{"w":1}');
+        uint256[] memory w = new uint256[](2);
+        w[0] = 5000;
+        w[1] = 5000;
+        vm.prank(operator);
+        vault.rebalance(h, 0, block.timestamp, w, new bytes[](0), _mins());
+        assertApproxEqAbs(vault.balanceOf(feeTo), 410_958, 100);
+    }
+
+    /// @notice Empty vault rebalances cleanly: no deposits, no fee, nonce still advances.
+    function test_rebalance_empty_vault() public {
+        bytes32 h = _commit(0, block.timestamp, '{"w":1}');
+        uint256[] memory w = new uint256[](2);
+        w[0] = 5000;
+        w[1] = 5000;
+        vm.prank(operator);
+        vault.rebalance(h, 0, block.timestamp, w, new bytes[](0), _mins());
+        assertEq(vault.nonce(), 1);
+        assertEq(vault.balanceOf(feeTo), 0);
+    }
+
+    /// @notice Rebalanced event commits old weights, new weights and total value onchain.
+    function test_rebalance_emits_event() public {
+        vm.prank(alice);
+        vault.deposit(1_000_000_000, alice);
+        bytes32 h = _commit(0, block.timestamp, '{"w":1}');
+        uint256[] memory w = new uint256[](2);
+        w[0] = 5000;
+        w[1] = 5000;
+        vm.expectEmit(true, false, false, true);
+        emit EquityVault.Rebalanced(0, w, w, 1_000_000_000);
+        vm.prank(operator);
+        vault.rebalance(h, 0, block.timestamp, w, new bytes[](0), _mins());
     }
 }
 
@@ -236,13 +283,22 @@ contract VaultGuardsTest is VaultHarness {
     }
 
     function test_revert_slippage_floor() public {
-        bytes32 h = _commit(0, block.timestamp, '{"w":1}');
         vm.prank(alice);
         vault.deposit(1_000_000_000, alice);
+        // why: allocate first — an all-idle vault has no SELL leg, and buy legs
+        // carry no floor, so the impossible floor must sit on a real sale.
+        bytes32 h0 = _commit(0, block.timestamp, '{"w":1}');
+        vm.prank(operator);
+        vault.rebalance(h0, 0, block.timestamp, _w(), new bytes[](0), _mins());
+        // Shift to 100% NVDA: forces a full MSFT sale against the floor below.
+        uint256[] memory allNvda = new uint256[](2);
+        allNvda[0] = 10_000;
+        allNvda[1] = 0;
+        bytes32 h = _commit(1, block.timestamp, '{"w":2}');
         uint256[] memory floors = new uint256[](2);
-        floors[0] = type(uint256).max; // impossible floor on the sell leg
+        floors[1] = type(uint256).max; // impossible floor on the MSFT sell leg
         vm.prank(operator);
         vm.expectRevert(EquityVault.SlippageExceeded.selector);
-        vault.rebalance(h, 0, block.timestamp, _w(), new bytes[](0), floors);
+        vault.rebalance(h, 1, block.timestamp, allNvda, new bytes[](0), floors);
     }
 }
