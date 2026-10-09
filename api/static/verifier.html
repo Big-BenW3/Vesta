@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vesta Verifier — prove the AI did what it said</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    input, textarea { width: 100%; margin: 0.25rem 0 0.75rem; padding: 0.5rem; }
+    button { padding: 0.6rem 1.2rem; cursor: pointer; }
+    #result { font-size: 1.5rem; margin-top: 1rem; }
+    code { overflow-wrap: anywhere; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
+</head>
+<body>
+  <h1>Vesta Verifier</h1>
+  <p>Paste a <code>(vault, nonce)</code> to fetch the published reasoning, recompute its
+  onchain fingerprint locally, and compare it to the <code>StrategyCommitted</code> event.</p>
+  <label>API base <input id="api" value="" placeholder="https://your-api.onrender.com" /></label>
+  <label>Vault address <input id="vault" placeholder="0x…" /></label>
+  <label>Nonce <input id="nonce" placeholder="42" /></label>
+  <label>Or paste reasoning JSON directly <textarea id="json" rows="8" placeholder='{"vault":…}'></textarea></label>
+  <button id="go">Verify</button>
+  <div id="result"></div>
+  <pre id="detail"></pre>
+<script>
+const REGISTRY_ABI = ["function commitments(address,uint256) view returns (bytes32,uint256,uint256,bool)"];
+const RPC = "https://testnet-rpc.monad.xyz";
+const REGISTRY = "0x0000000000000000000000000000000000000000"; // filled from shared/deployments.json
+
+function canonical(doc) {
+  // why: must byte-match agent canonical_reasoning (sorted keys, compact separators).
+  const sort = (v) => Array.isArray(v) ? v.map(sort)
+    : (v && typeof v === "object") ? Object.fromEntries(Object.keys(v).sort().map(k => [k, sort(v[k])])) : v;
+  return JSON.stringify(sort(doc));
+}
+
+document.getElementById("go").onclick = async () => {
+  const out = (t, d) => {
+    document.getElementById("result").textContent = t;
+    document.getElementById("detail").textContent = d || "";
+  };
+  try {
+    const api = document.getElementById("api").value.replace(/\/$/, "");
+    let doc;
+    const pasted = document.getElementById("json").value.trim();
+    if (pasted) { doc = JSON.parse(pasted); }
+    else {
+      const vault = document.getElementById("vault").value.trim();
+      const nonce = document.getElementById("nonce").value.trim();
+      const r = await fetch(`${api}/api/v1/reasoning/${vault}/${nonce}`);
+      if (!r.ok) return out("❌ no published reasoning for (vault, nonce)");
+      doc = await r.json();
+    }
+    const bytes = new TextEncoder().encode(canonical(doc));
+    const inner = ethers.keccak256(bytes);
+    const hash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
+      ["address", "uint256", "uint256", "bytes32"],
+      [doc.vault, doc.nonce, doc.timestamp, inner]));
+    const provider = new ethers.JsonRpcProvider(RPC);
+    const reg = new ethers.Contract(REGISTRY, REGISTRY_ABI, provider);
+    const [onchain] = await reg.commitments(doc.vault, doc.nonce);
+    if (onchain.toLowerCase() === hash.toLowerCase()) {
+      out("✅ VERIFIED — onchain fingerprint matches published reasoning",
+        `recomputed: ${hash}\nonchain:   ${onchain}`);
+    } else {
+      out("❌ MISMATCH — the published reasoning does not match the commitment",
+        `recomputed: ${hash}\nonchain:   ${onchain}`);
+    }
+  } catch (e) { out("❌ verifier error", String(e)); }
+};
+</script>
+</body>
+</html>
