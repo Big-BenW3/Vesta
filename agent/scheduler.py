@@ -75,12 +75,15 @@ def main() -> None:
     }
     deployments = json.load(open("shared/deployments.json"))
     w3 = Web3(Web3.HTTPProvider(cfg["rpc"]))
+    once = os.environ.get("AGENT_ONCE") == "1"
     while True:
         for v in deployments.get("vaults", []):
             try:
                 log.info(tick(w3, cfg, v))
             except Exception as exc:  # noqa: BLE001 — skip-tick, never half-trade
                 log.warning("tick skipped: %s", exc)
+        if once:
+            return
         time.sleep(CADENCE_S)
 
 
