@@ -261,6 +261,21 @@ contract EquityVault is ERC4626, ReentrancyGuard {
         emit Rebalanced(nonce_, old, newWeights, totalValue);
     }
 
+    // ── Price upkeep (permissionless) ───────────────────────────────────
+
+    /// @notice Pushes fresh Pyth prices without rebalancing. Anyone may call —
+    /// without it, redeems brick when the agent is idle past priceMaxAge.
+    /// @param priceUpdateData Hermes-signed updates. msg.value pays the Pyth fee, dust refunds.
+    function poke(bytes[] calldata priceUpdateData) external payable nonReentrant {
+        uint256 fee = pyth.getUpdateFee(priceUpdateData);
+        if (msg.value < fee) revert UnderfundedFee();
+        pyth.updatePriceFeeds{value: fee}(priceUpdateData);
+        if (msg.value > fee) {
+            (bool ok,) = msg.sender.call{value: msg.value - fee}("");
+            require(ok, "refund failed");
+        }
+    }
+
     // ── Fee A (time-pro-rated skim) ───────────────────────────────────────
 
     /// @notice Mints fee shares to feeRecipient for dt since the last skim.
@@ -284,6 +299,7 @@ contract EquityVault is ERC4626, ReentrancyGuard {
     // ── Internals ─────────────────────────────────────────────────────────
 
     /// @notice Sells just enough of each holding (pro-rata by value) to cover `needed` USDC.
+    /// @dev Requires pushed prices fresher than priceMaxAge — anyone can `poke()` them first.
     function _freeUSDC(uint256 needed) internal {
         uint256 idle = USDC.balanceOf(address(this));
         if (idle >= needed) return;
