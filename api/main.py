@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from core.config import load
+from core.security import rate_limit_strict
 from models import store
 from models.errors import envelope_middleware
 from routers import agent_routes, reasoning_routes, vault_routes
@@ -52,7 +53,7 @@ def create_app() -> FastAPI:
     def healthz() -> dict:
         return {"ok": True}
 
-    @app.get("/verifier")
+    @app.get("/verifier", dependencies=[Depends(rate_limit_strict)])
     def verifier() -> FileResponse:
         return FileResponse("static/verifier.html", media_type="text/html")
 

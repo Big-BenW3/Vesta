@@ -13,7 +13,7 @@ import time
 from fastapi import APIRouter, Depends, Request
 
 from core.config import Settings, load
-from core.security import checksum, rate_limit, require_agent_key
+from core.security import checksum, rate_limit, rate_limit_strict, require_agent_key
 from models import store
 from models.errors import (
     nonce_conflict,
@@ -24,7 +24,7 @@ from models.errors import (
 )
 from models.schemas import MAX_BODY_BYTES, ReasoningDoc
 
-router = APIRouter(dependencies=[Depends(rate_limit)])
+router = APIRouter(dependencies=[Depends(rate_limit_strict)])
 
 TIMESTAMP_SKEW_S = 300
 

@@ -18,11 +18,16 @@ MAX_CONF_BPS = 200
 
 
 def _get(client: httpx.Client, url: str, params: dict) -> dict:
-    """GET with backoff. Raises RuntimeError after RETRIES exhausted."""
+    """GET with backoff. Honors 429 Retry-After; raises RuntimeError when exhausted."""
     last: Exception | None = None
     for attempt in range(RETRIES):
         try:
             resp = client.get(url, params=params, timeout=TIMEOUT_S)
+            if resp.status_code == 429:
+                # why: Hermes throttles burst history reads — wait what it asks, then retry.
+                wait = float(resp.headers.get("Retry-After", 2**attempt))
+                time.sleep(min(wait, 30.0))
+                continue
             resp.raise_for_status()
             return resp.json()
         except Exception as exc:  # noqa: BLE001 — retried, then raised uniformly
