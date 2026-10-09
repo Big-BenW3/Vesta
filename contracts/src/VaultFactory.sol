@@ -89,8 +89,19 @@ contract VaultFactory {
         if (sum != 10_000) revert BadWeights();
         if (spec.feeRecipient == address(0) || operator == address(0)) revert ZeroAddress();
 
-        bytes32 themeId =
-            keccak256(abi.encode(spec.name, spec.symbol, spec.underlying, spec.targetWeightsBps));
+        // why: identity covers feeds + fee too — same basket on different oracle
+        // feeds (or fee tiers) is a different theme, not a duplicate.
+        bytes32 themeId = keccak256(
+            abi.encode(
+                spec.name,
+                spec.symbol,
+                spec.underlying,
+                spec.targetWeightsBps,
+                spec.pythPriceIds,
+                spec.feeRecipient,
+                spec.managementFeeBps
+            )
+        );
         if (vaults[themeId] != address(0)) revert AlreadyCreated();
 
         IERC20[] memory underlyings = new IERC20[](spec.underlying.length);

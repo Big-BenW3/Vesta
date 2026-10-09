@@ -44,8 +44,17 @@ contract FactoryTest is Test {
     function test_create_vault_wires_everything() public {
         address v = factory.createVault(_spec(), operator);
         assertTrue(v != address(0));
+        VaultFactory.ThemeSpec memory s = _spec();
         bytes32 themeId = keccak256(
-            abi.encode("Single", "vONE", _spec().underlying, _spec().targetWeightsBps)
+            abi.encode(
+                "Single",
+                "vONE",
+                s.underlying,
+                s.targetWeightsBps,
+                s.pythPriceIds,
+                s.feeRecipient,
+                s.managementFeeBps
+            )
         );
         assertEq(factory.vaults(themeId), v);
         assertEq(factory.registry().operators(v), operator);
