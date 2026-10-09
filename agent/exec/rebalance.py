@@ -71,7 +71,7 @@ def post_reasoning(api_url: str, api_key: str, reasoning: bytes, tx_hash: str = 
 
 
 def submit_rebalance(
-    w3: Web3,
+    w3,
     vault_address: str,
     registry_address: str,
     operator_key: str,

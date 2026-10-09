@@ -10,8 +10,6 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from web3 import Web3
-
 ABI_DIR = Path(__file__).resolve().parents[2] / "shared" / "abis"
 
 
@@ -37,13 +35,13 @@ def _load_abi(name: str) -> list:
     return json.loads(path.read_text())
 
 
-def read_vault(
-    w3: Web3, vault_address: str, usdc_address: str, underlyings: list[str]
-) -> VaultState:
+def read_vault(w3, vault_address: str, usdc_address: str, underlyings: list[str]) -> VaultState:
     """Snapshot a vault. `underlyings` comes from shared/deployments.json metadata.
 
-    Raises on RPC failure — callers treat it as skip-tick.
+    `w3` is a web3 client (Render image). Raises on RPC failure — skip-tick.
     """
+    from web3 import Web3
+
     vault = w3.eth.contract(
         address=Web3.to_checksum_address(vault_address), abi=_load_abi("EquityVault")
     )
