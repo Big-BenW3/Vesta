@@ -13,7 +13,7 @@ import time
 
 import httpx
 from eth_abi import encode
-from web3 import Web3
+from eth_utils import keccak, to_checksum_address
 
 from data.state import VaultState
 
@@ -31,7 +31,7 @@ def canonical_reasoning(
 ) -> bytes:
     """Canonical reasoning bytes. Sorted keys + compact separators, always."""
     doc = {
-        "vault": Web3.to_checksum_address(vault),
+        "vault": to_checksum_address(vault),
         "nonce": nonce,
         "timestamp": timestamp,
         "inputPrices": prices,
@@ -45,12 +45,12 @@ def canonical_reasoning(
 
 
 def commitment_hash(vault: str, nonce: int, timestamp: int, reasoning: bytes) -> bytes:
-    """Solidity-compatible commitment fingerprint."""
-    inner = Web3.keccak(reasoning)
-    return Web3.keccak(
+    """Solidity-compatible commitment fingerprint (keccak256, abi.encode layout)."""
+    inner = keccak(reasoning)
+    return keccak(
         encode(
             ["address", "uint256", "uint256", "bytes32"],
-            [Web3.to_checksum_address(vault), nonce, timestamp, inner],
+            [to_checksum_address(vault), nonce, timestamp, inner],
         )
     )
 

@@ -12,13 +12,18 @@ import pytest
 fastapi = pytest.importorskip("fastapi")
 httpx = pytest.importorskip("httpx")
 
+from starlette.testclient import TestClient
+
 os.environ.setdefault("REGISTRY_ADDR", "0x" + "00" * 20)
 os.environ.setdefault("AGENT_API_KEY", "test-key")
 os.environ.setdefault("SQLITE_PATH", os.path.join(tempfile.mkdtemp(), "api.db"))
 
 from main import create_app  # noqa: E402
+from models import store  # noqa: E402
 
-client = fastapi.testclient.TestClient(create_app())
+store.init_db(os.environ["SQLITE_PATH"])
+
+client = TestClient(create_app())
 KEY = {"X-API-Key": "test-key"}
 
 

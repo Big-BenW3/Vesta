@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from core.config import load
 from core.security import rate_limit_strict
@@ -48,6 +48,17 @@ def create_app() -> FastAPI:
     app.include_router(vault_routes.router, prefix="/api/v1")
     app.include_router(reasoning_routes.router, prefix="/api/v1")
     app.include_router(agent_routes.router, prefix="/api/v1")
+
+    @app.exception_handler(HTTPException)
+    async def http_envelope(request, exc: HTTPException):
+        # why: route-raised HTTPExceptions bypass middleware (ExceptionMiddleware
+        # converts them downstream), so the envelope is enforced here instead.
+        body = (
+            exc.detail
+            if isinstance(exc.detail, dict) and "error" in exc.detail
+            else {"error": {"code": "INTERNAL", "message": str(exc.detail), "details": {}}}
+        )
+        return JSONResponse(status_code=exc.status_code, content=body, headers=exc.headers)
 
     @app.get("/healthz")
     def healthz() -> dict:
