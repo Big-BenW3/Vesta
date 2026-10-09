@@ -30,16 +30,28 @@ contract MockRouter is ISwapRouter {
 }
 
 /// @notice Programmable Pyth double: fixed (price, expo) per feed id.
+/// updatePriceFeeds refreshes publishTime (models the real pull); fee is settable.
 contract MockPyth is IPyth {
     mapping(bytes32 => PythPrice) prices;
+    bytes32[] ids;
+    uint256 feeWei;
 
     function setPrice(bytes32 id, int64 price, int32 expo) external {
+        if (prices[id].publishTime == 0) ids.push(id);
         prices[id] = PythPrice(price, 0, expo, block.timestamp);
     }
 
-    function updatePriceFeeds(bytes[] calldata) external payable override {}
-    function getUpdateFee(bytes[] calldata) external pure override returns (uint256) {
-        return 0;
+    function setFee(uint256 f) external {
+        feeWei = f;
+    }
+
+    function updatePriceFeeds(bytes[] calldata) external payable override {
+        for (uint256 i; i < ids.length; ++i) {
+            prices[ids[i]].publishTime = block.timestamp;
+        }
+    }
+    function getUpdateFee(bytes[] calldata) external view override returns (uint256) {
+        return feeWei;
     }
     function getPriceNoOlderThan(bytes32 id, uint256 age)
         external
@@ -300,5 +312,41 @@ contract VaultGuardsTest is VaultHarness {
         vm.prank(operator);
         vm.expectRevert(EquityVault.SlippageExceeded.selector);
         vault.rebalance(h, 1, block.timestamp, allNvda, new bytes[](0), floors);
+    }
+}
+
+/// @notice poke(): permissionless price upkeep that unbricks redeems when the agent is idle.
+contract PokeTest is VaultHarness {
+    /// @notice Stale prices brick redeem; one poke refreshes and the redeem completes.
+    function test_poke_unbricks_redeem() public {
+        vm.prank(alice);
+        uint256 shares = vault.deposit(1_000_000_000, alice);
+        // Allocate so the redeem must sell (exercises the price path, not just idle).
+        bytes32 h = _commit(0, block.timestamp, '{"w":1}');
+        uint256[] memory w = new uint256[](2);
+        w[0] = 5000;
+        w[1] = 5000;
+        vm.prank(operator);
+        vault.rebalance(h, 0, block.timestamp, w, new bytes[](0), _mins());
+
+        skip(4000); // past priceMaxAge 3600
+        vm.prank(alice);
+        vm.expectRevert("insufficient basket");
+        vault.redeem(shares, alice, alice);
+
+        // why: anyone (not just the operator) can push prices — liveness is permissionless.
+        vm.prank(alice);
+        vault.poke(new bytes[](0));
+        vm.prank(alice);
+        uint256 out = vault.redeem(shares, alice, alice);
+        assertApproxEqAbs(out, 1_000_000_000, 1_000_000);
+    }
+
+    /// @notice Underfunded Pyth fee reverts instead of short-paying the oracle.
+    function test_poke_underfunded_reverts() public {
+        pyth.setFee(1 ether);
+        vm.prank(alice);
+        vm.expectRevert(EquityVault.UnderfundedFee.selector);
+        vault.poke(new bytes[](0));
     }
 }
