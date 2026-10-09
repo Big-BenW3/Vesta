@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {ERC4626} from "@openzeppelin/ERC4626.sol";
-import {ERC20} from "@openzeppelin/ERC20.sol";
-import {IERC20} from "@openzeppelin/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/ReentrancyGuard.sol";
-import {Math} from "@openzeppelin/Math.sol";
+import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ISwapRouter} from "./interfaces/ISwapRouter.sol";
 import {IPyth, PythPrice, IStrategyCommitmentRegistry} from "./interfaces/IPyth.sol";
 

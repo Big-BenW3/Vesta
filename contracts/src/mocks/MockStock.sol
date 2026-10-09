@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {ERC20} from "@openzeppelin/ERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @notice Faucet-style mock of a Backed xStock for Monad testnet. Same ERC-20
 /// interface as the real asset, so vault/swap/accounting code is identical —
