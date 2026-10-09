@@ -39,6 +39,9 @@ Hermes https://hermes.pyth.network (offchain price history + updateData)
   from published reasoning catches a lying operator after the fact (see VERIFIER.md).
 * Pyth staleness is bounded by `priceMaxAge` on swaps and `maxAgeSec` (900s) on
   commitments. `withdrawableUSDC()` is an estimate, never settlement truth.
+* Accepted V1 risk: rebalance BUY legs carry no onchain floor (`minAmountOut`
+  guards sells only). The operator is trusted and testnet pools are thin, so MEV
+  exposure is negligible for the demo; V2 adds buy floors from a quoter path.
 
 ## What lives where
 
