@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Assemble v1 API + health + verifier page."""
     settings = load()
-    app = FastAPI(title="Vesta API", version="1.0.0", redirect_slashes=True)
+    app = FastAPI(title="Vesta API", version="1.0.0", redirect_slashes=True, lifespan=lifespan)
     app.middleware("http")(envelope_middleware)
     app.add_middleware(
         CORSMiddleware,
