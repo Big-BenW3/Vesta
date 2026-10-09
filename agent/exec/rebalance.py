@@ -96,7 +96,10 @@ def submit_rebalance(
         commitment, vault_address, nonce, timestamp
     ).build_transaction({"from": acct.address, "nonce": w3.eth.get_transaction_count(acct.address)})
     commit_tx = w3.eth.send_raw_transaction(acct.sign_transaction(tx1).raw_transaction)
-    w3.eth.wait_for_transaction_receipt(commit_tx, timeout=120)
+    # why: never cascade — a reverted commit (replay, wrong operator) must stop the tick here.
+    receipt1 = w3.eth.wait_for_transaction_receipt(commit_tx, timeout=120)
+    if receipt1.status != 1:
+        raise RuntimeError(f"commit reverted: {commit_tx.hex()}")
 
     # why: value covers the Pyth update fee; dust refunds to the operator onchain.
     pyth_addr = vault.functions.pyth().call()
@@ -109,7 +112,9 @@ def submit_rebalance(
         {"from": acct.address, "nonce": w3.eth.get_transaction_count(acct.address), "value": value}
     )
     reb_tx = w3.eth.send_raw_transaction(acct.sign_transaction(tx2).raw_transaction)
-    w3.eth.wait_for_transaction_receipt(reb_tx, timeout=180)
+    receipt2 = w3.eth.wait_for_transaction_receipt(reb_tx, timeout=180)
+    if receipt2.status != 1:
+        raise RuntimeError(f"rebalance reverted: {reb_tx.hex()}")
     return commit_tx.hex(), reb_tx.hex()
 
 
